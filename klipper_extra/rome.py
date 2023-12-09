@@ -41,7 +41,7 @@ class ROME:
         self.unload_filament_after_print = self.config.getfloat('unload_filament_after_print', 1)
         self.wipe_tower_acceleration = self.config.getfloat('wipe_tower_acceleration', 5000.0)
         self.use_ooze_ex = self.config.getfloat('use_ooze_ex', 1)
-        self.extra_filaments = self.config.getint('extra_filaments', 3)
+        
 
         self.runout_detected = False
         self.infinite_spool = False
@@ -143,7 +143,7 @@ class ROME:
 
     def cmd_LOAD_TOOL(self, param):
         self.cmd_origin = "gcode"
-        tool = param.get_int('TOOL', None, minval=0, maxval=self.tool_count+extra_filaments)
+        tool = param.get_int('TOOL', None, minval=0, maxval=self.tool_count+3)
         temp = param.get_int('TEMP', None, minval=-1, maxval=self.heater.max_temp)
         
         # load tool
@@ -159,7 +159,7 @@ class ROME:
     
     def cmd_UNLOAD_TOOL(self, param):
         self.cmd_origin = "gcode"
-        tool = param.get_int('TOOL', None, minval=-1, maxval=self.tool_count+extra_filaments)
+        tool = param.get_int('TOOL', None, minval=-1, maxval=self.tool_count+3)
         temp = param.get_int('TEMP', None, minval=-1, maxval=self.heater.max_temp)
 
         # set hotend temperature
@@ -174,7 +174,7 @@ class ROME:
             self.unload_tool(-1, False)
 
     def cmd_EJECT_TOOL(self, param):
-        tool = param.get_int('TOOL', None, minval=-1, maxval=self.tool_count+extra_filaments)
+        tool = param.get_int('TOOL', None, minval=-1, maxval=self.tool_count+3)
         self.eject_filament(tool)
 
     def cmd_HOME_ROME(self, param):
@@ -183,7 +183,7 @@ class ROME:
             self.respond("Can not home ROME!")
 
     def cmd_CHANGE_TOOL(self, param):
-        tool = param.get_int('TOOL', None, minval=0, maxval=self.tool_count+extra_filaments)
+        tool = param.get_int('TOOL', None, minval=0, maxval=self.tool_count+3)
         self.respond("#cmd_CHANGE_TOOL")
         if not self.change_tool(tool):
             self.pause_rome()
