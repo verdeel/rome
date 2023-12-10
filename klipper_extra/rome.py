@@ -227,6 +227,18 @@ class ROME:
         self.wipe_tower_width = param.get_float('WIPE_TOWER_WIDTH', None, minval=0, maxval=999)
         self.wipe_tower_rotation_angle = param.get_float('WIPE_TOWER_ROTATION_ANGLE', None, minval=-360, maxval=360)
 
+        X0 = param.get_float('X0', None, minval=0, maxval=999) 
+        X1 = param.get_float('X1', None, minval=0, maxval=999) 
+        Y0 = param.get_float('Y0', None, minval=0, maxval=999) 
+        Y1 = param.get_float('Y1', None, minval=0, maxval=999) 
+        firstTool = param.get_int('TOOL',minval=0,maxval =999)
+        
+        self.respond("SSS ROME_START ADAPTIVE MESH")
+        self.respond("X0: " + str(X0))
+        self.respond("X1: " + str(X1))
+        self.respond("Y0: " + str(Y0))
+        self.respond("Y1: " + str(Y1))
+
 
         cooling_tube_retraction = param.get_float('COOLING_TUBE_RETRACTION', None, minval=0, maxval=999) 
         cooling_tube_length = param.get_float('COOLING_TUBE_LENGTH', None, minval=0, maxval=999) 
@@ -245,23 +257,29 @@ class ROME:
         extruder_temp = param.get_int('EXTRUDER_TEMP', None, minval=-1, maxval=self.heater.max_temp)
         chamber_temp = param.get_int('CHAMBER_TEMP', None, minval=0, maxval=70)
 
-        #self.respond("SSS ROME_START 1")
-        #self.gcode.run_script_from_command("TEST_3")
+        self.respond("SSS ROME_START 1")
+        self.gcode.run_script_from_command("TEST3")
 
         self.disable_toolhead_filament_sensor() 
 
         self.gcode.run_script_from_command("SET_GCODE_VARIABLE MACRO=RatOS VARIABLE=relative_extrusion VALUE=True")
         
-        #self.gcode.run_script_from_command("TEST_3")
+        self.gcode.run_script_from_command("TEST3")
         
         self.gcode.run_script_from_command("SET_GCODE_VARIABLE MACRO=_START_PRINT_AFTER_HEATING_EXTRUDER VARIABLE=tool VALUE=" + str(tool + 1))
         
-        #self.gcode.run_script_from_command("TEST_3")
+        self.gcode.run_script_from_command("TEST3")
         
-        self.gcode.run_script_from_command("START_PRINT BED_TEMP=" + str(bed_temp) + " EXTRUDER_TEMP=" + str(extruder_temp) + " CHAMBER_TEMP=" + str(chamber_temp))
+        self.respond(" X0: " + str(X0) + " X1: " + str(X1) +" Y0: " + str(Y0) +" Y1: " + str(Y1))
         
-        #self.respond("SSS ROME_START 4")
-        #self.gcode.run_script_from_command("TEST_3")
+        self.gcode.run_script_from_command("START_PRINT BED_TEMP=" + str(bed_temp) + " EXTRUDER_TEMP=" + str(extruder_temp) + " CHAMBER_TEMP=" + str(chamber_temp) + " X0=" + str(X0) + " X1=" + str(X1) + " Y0=" + str(Y0) + " Y1=" + str(Y1) + " TOOL=" +str(firstTool))
+        
+        self.respond("SSS ROME_START 4")
+        self.gcode.run_script_from_command("TEST3")
+        self.gcode.run_script_from_command("M104 T0 S" + str(extruder_temp))
+        
+        
+        
 
     
     
@@ -525,14 +543,14 @@ class ROME:
     wipe_tower_rotation_angle = 0
 
     def change_tool(self, tool):
-        self.respond("&&& change_tool !!! " + str(tool + 1))
-
+        self.respond("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& change_tool !!! " + str(tool + 1))
+        self.respond("changes !!! " + str(self.Filament_Changes))
+        
         self.cmd_origin = "rome"
         
-        #self.respond("changes !!! " + str(self.Filament_Changes))
 
         # change tool
-        if self.Filament_Changes > -1:
+        if self.Filament_Changes > 0:
             self.respond("changes>0")
             self.before_change()
             if not self.load_tool(tool + 1, -1, self.use_filament_caching):
@@ -542,9 +560,12 @@ class ROME:
 
                 return False
             self.after_change()
+        else:
+            self.respond("changes>0 else ")    
+            # self.load_tool(tool + 1, -1, self.use_filament_caching)
             
         self.Filament_Changes = self.Filament_Changes + 1
-        self.respond("Change_tool done:!!!! " + str(tool + 1))
+        self.respond("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&Change_tool done:!!!! " + str(tool + 1))
         # success
         return True
 
@@ -581,7 +602,7 @@ class ROME:
             self.extruder_set_temperature(temp, True)
             
         self.respond("Temp target !!! " + str(self.Filament_Changes))
-
+        self.respond("%%% load_tool3")   
         # check hotend temperature
         if not self.extruder_can_extrude():
             self.respond("Hotend too cold!")
@@ -590,7 +611,8 @@ class ROME:
             
         # enable filament sensor
         self.enable_toolhead_filament_sensor()
-
+        self.respond("%%% load_tool4")   
+        self.gcode.run_script_from_command("TEST3")  
         # load filament
         if self.toolhead_filament_sensor_triggered():
             if not self.unload_tool(tool, cache):
@@ -662,10 +684,15 @@ class ROME:
         # select tool
         self.respond("Unload selected: " + str(self.Selected_Filament))
        
-        self.select_tool(self.Selected_Filament)
-        self.gcode.run_script_from_command("TEST3")  
+       
+        self.respond("&&& unload_tool1")   
+        self.gcode.run_script_from_command("TEST3")
+       
+
         
         if self.Selected_Filament > self.tool_count:
+            self.respond("&&& unload_tool if")   
+            self.gcode.run_script_from_command("TEST3")
             # exact positioning
             accuracy_in_mm = 1
             max_step_count = 99999
@@ -688,6 +715,10 @@ class ROME:
              
         else:
             # unload tool AUTO
+            
+            self.respond("&&& unload_tool else")   
+            self.gcode.run_script_from_command("TEST3")
+            
             if self.mode != "slicer":
                 #self.respond("unload not slicer!")
                 if not self.unload_filament_from_nozzle_to_parking_position():
@@ -707,6 +738,11 @@ class ROME:
                 return False
 
         # success
+        
+        self.respond("&&& unload_tool2")   
+        self.gcode.run_script_from_command("TEST3")
+        
+        
         self.respond("### Unload completed")
         return True
 
@@ -875,7 +911,7 @@ class ROME:
 
         # load filament into nozzle
         self.gcode.run_script_from_command('G92 E0')
-        if self.cmd_origin != "rome" or self.exchange_old_position == None or self.use_ooze_ex == 0:
+        if self.cmd_origin != "rome" or self.exchange_old_position == None or self.use_ooze_ex == 0 or self.Filament_Changes == 0:
             self.gcode.run_script_from_command('G0 E' + str(self.parking_position_to_nozzle_mm) + ' F' + str(self.nozzle_loading_speed_mms * 60))
         else:
             self.gcode.run_script_from_command('G0 E' + str(self.parking_position_to_nozzle_mm / 2) + ' X' + str(self.ooze_move_x) + ' F' + str(self.nozzle_loading_speed_mms * 60))
