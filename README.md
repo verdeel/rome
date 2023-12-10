@@ -3,6 +3,12 @@ RatOS Multi Extruder
 
 A multi extruder to direct extruder solution for RatOS
 
+
+The document below is from the original creator, currently I am making some changes based on my personal preferences and use case.
+    - changed the starting gcode from Rome to make it compatible with Kamp
+    - this requires an alteration to the Ratos Start_print gcode (to load the initial tool prior to the primeline/primeblob). 
+    - "manual" filament changing for the filaments not with their own extruder feeder, incl. detection using the toolhead filament sensor
+
 High speed multi material printing with as many extruders as you want
 
 ## Table of Content
