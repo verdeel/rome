@@ -135,6 +135,7 @@ class ROME:
         self.gcode.register_command('Z_HOME_TEST', self.cmd_Z_HOME_TEST, desc=("Z_HOME_TEST"))
         self.gcode.register_command('F_RUNOUT', self.cmd_F_RUNOUT, desc=("F_RUNOUT"))
         self.gcode.register_command('F_INSERT', self.cmd_F_INSERT, desc=("F_INSERT"))
+        self.gcode.register_command('UNLOAD_ALL', self.cmd_UNLOAD_ALL, desc=("UNLOAD_ALL"))
         self.gcode.register_command('_SET_INFINITE_SPOOL', self.cmd_SET_INFINITE_SPOOL, desc=("SET_INFINITE_SPOOL"))
 
     def cmd_SELECT_TOOL(self, param):
@@ -159,7 +160,7 @@ class ROME:
     
     def cmd_UNLOAD_TOOL(self, param):
         self.cmd_origin = "gcode"
-        tool = param.get_int('TOOL', None, minval=-1, maxval=self.tool_count+3)
+        #tool = param.get_int('TOOL', None, minval=-1, maxval=self.tool_count+3)
         temp = param.get_int('TEMP', None, minval=-1, maxval=self.heater.max_temp)
 
         # set hotend temperature
@@ -167,10 +168,11 @@ class ROME:
             self.set_hotend_temperature(temp)
         
         # unload tool
-        self.Selected_Filament = tool
+        #self.Selected_Filament = tool
         self.respond("Unload - selected filament: " + str(self.Selected_Filament))
         
         if self.toolhead_filament_sensor_triggered():
+            self.respond("Somethings in there...")
             self.unload_tool(-1, False)
 
     def cmd_EJECT_TOOL(self, param):
@@ -209,8 +211,10 @@ class ROME:
         self.respond("Done!")
 
     def cmd_ROME_START_PRINT(self, param):
-    
- 
+     
+        self.respond("SSS cmd_ROME_START_PRINT")
+
+     
         self.cmd_origin = "rome"
         self.mode = "native"
         self.infinite_spool = False
@@ -233,11 +237,6 @@ class ROME:
         Y1 = param.get_float('Y1', None, minval=0, maxval=999) 
         firstTool = param.get_int('TOOL',minval=0,maxval =999)
         
-        self.respond("SSS ROME_START ADAPTIVE MESH")
-        self.respond("X0: " + str(X0))
-        self.respond("X1: " + str(X1))
-        self.respond("Y0: " + str(Y0))
-        self.respond("Y1: " + str(Y1))
 
 
         cooling_tube_retraction = param.get_float('COOLING_TUBE_RETRACTION', None, minval=0, maxval=999) 
@@ -255,7 +254,11 @@ class ROME:
         tool = param.get_int('TOOL', None, minval=0, maxval=self.tool_count)
         bed_temp = param.get_int('BED_TEMP', None, minval=-1, maxval=self.heater.max_temp)
         extruder_temp = param.get_int('EXTRUDER_TEMP', None, minval=-1, maxval=self.heater.max_temp)
-        chamber_temp = param.get_int('CHAMBER_TEMP', None, minval=0, maxval=70)
+        chamber_temp = param.get_int('CHAMBER_TEMP', None, minval=0, maxval=75)
+        
+        self.respond("BED TEMP TARGET: " + str(bed_temp))
+        self.respond("CHAMBER TEMP TARGET: " + str(chamber_temp))
+        
 
         self.respond("SSS ROME_START 1")
         self.gcode.run_script_from_command("TEST3")
@@ -270,7 +273,7 @@ class ROME:
         
         self.gcode.run_script_from_command("TEST3")
         
-        self.respond(" X0: " + str(X0) + " X1: " + str(X1) +" Y0: " + str(Y0) +" Y1: " + str(Y1))
+        #self.respond(" X0: " + str(X0) + " X1: " + str(X1) +" Y0: " + str(Y0) +" Y1: " + str(Y1))
         
         self.gcode.run_script_from_command("START_PRINT BED_TEMP=" + str(bed_temp) + " EXTRUDER_TEMP=" + str(extruder_temp) + " CHAMBER_TEMP=" + str(chamber_temp) + " X0=" + str(X0) + " X1=" + str(X1) + " Y0=" + str(Y0) + " Y1=" + str(Y1) + " TOOL=" +str(firstTool))
         
@@ -322,6 +325,66 @@ class ROME:
     def cmd_SET_INFINITE_SPOOL(self, param):
         self.infinite_spool = not self.infinite_spool
         self.respond("Infinite Spool: " + str(self.infinite_spool))
+
+    def cmd_UNLOAD_ALL(self):
+        self.respond("cmd_UNLOAD_ALL")
+
+        # check hotend temperature
+        if not self.extruder_can_extrude():
+            self.respond("Hotend too cold!")
+            self.respond("Heating up nozzle to " + str(self.heater.min_extrude_temp+10))
+            self.extruder_set_temperature(self.heater.min_extrude_temp, True)
+
+        # select filament
+        self.select_tool(-1)
+           
+           
+           
+        # eject filament
+        #self.gcode.run_script_from_command('G92 E0')
+        #self.gcode.run_script_from_command('G0 E-' + str(150) + ' F' + str(self.filament_homing_speed_mms * 60))
+        #self.gcode.run_script_from_command('M400')
+       
+       
+        if self.mode != "slicer":
+            self.respond("unload not slicer!")
+            if not self.unload_filament_from_nozzle_to_parking_position():
+                self.respond("unload_filament_from_nozzle_to_parking_position false")
+                return False
+        if not self.unload_filament_from_parking_position_to_toolhead_sensor():
+            self.respond("unload_filament_from_parking_position_to_toolhead_sensor false")
+            return False
+        if not self.unload_filament_from_toolhead_sensor(-1, -1):
+            self.respond("unload_filament_from_toolhead_sensor false")
+            return False
+
+        # test if filament has been unloaded behind the y-sensor
+        
+        if self.y_filament_sensor_triggered():
+            self.respond("Unload not completed, doing manual!")
+            self.select_tool(tool)
+            
+            self.respond("&&& unload_tool if")   
+            self.gcode.run_script_from_command("TEST3")
+            # exact positioning
+            accuracy_in_mm = 1
+            max_step_count = 99999
+            
+            # find toolhead sensor
+            self.gcode.run_script_from_command('G92 E0')
+            self.gcode.run_script_from_command('G0 E-' + str(55) + ' F' + str(5 * 60))
+            self.gcode.run_script_from_command('M400')
+            
+            for n in range(max_step_count):
+                self.gcode.run_script_from_command('G92 E0')
+                self.gcode.run_script_from_command('G0 E-' + str(accuracy_in_mm) + ' F' + str(1 * 60))
+                self.gcode.run_script_from_command('M400')
+                if not self.toolhead_filament_sensor_triggered():
+                    break
+        
+        # success
+        return True
+        
 
     # -----------------------------------------------------------------------------------------------------------------------------
     # Home
@@ -480,8 +543,8 @@ class ROME:
         # check hotend temperature
         if not self.extruder_can_extrude():
             self.respond("Hotend too cold!")
-            self.respond("Heating up nozzle to " + str(self.heater.min_extrude_temp))
-            self.extruder_set_temperature(self.heater.min_extrude_temp, True)
+            self.respond("Heating up nozzle to " + str(self.heater.min_extrude_temp+10))
+            self.extruder_set_temperature(self.heater.min_extrude_temp+10, True)
 
         # select filament
         self.select_tool(tool)
@@ -579,7 +642,9 @@ class ROME:
         
         # send notification
         self.gcode.run_script_from_command('_SELECT_EXTRUDER EXTRUDER=' + str(tool))
-
+        
+        self.respond("load_toolpost1")    
+        self.gcode.run_script_from_command("TEST3")    
 
         # set hotend temperature
         if temp > 0:
@@ -587,6 +652,9 @@ class ROME:
         else:
             self.respond("Temp not set, keep current")
             #self.extruder_set_temperature(self.heater.min_extrude_temp + 20, True)
+
+        self.respond("load_toolpre2")    
+        self.gcode.run_script_from_command("TEST3") 
 
         # home if not homed yet
         if not self.Homed:
@@ -602,7 +670,9 @@ class ROME:
             self.extruder_set_temperature(temp, True)
             
         self.respond("Temp target !!! " + str(self.Filament_Changes))
-        self.respond("%%% load_tool3")   
+        
+        self.respond("%%% load_tool3") 
+        self.gcode.run_script_from_command("TEST3")         
         # check hotend temperature
         if not self.extruder_can_extrude():
             self.respond("Hotend too cold!")
@@ -649,7 +719,7 @@ class ROME:
                 if self.toolhead_filament_sensor_triggered():
                     self.gcode.run_script_from_command('G92 E0')
                     self.gcode.run_script_from_command('G0 E' + str(5) + ' F' + str(1 * 60))
-                    self.gcode.run_script_from_command('G0 E' + str(80) + ' F' + str(5 * 60))
+                    self.gcode.run_script_from_command('G0 E' + str(50) + ' F' + str(5 * 60))
                     self.gcode.run_script_from_command('M400')
                     break
 
@@ -680,17 +750,18 @@ class ROME:
         return True
 
     def unload_tool(self, new_filament, cache):
-
-        # select tool
-        self.respond("Unload selected: " + str(self.Selected_Filament))
-       
-       
-        self.respond("&&& unload_tool1")   
-        self.gcode.run_script_from_command("TEST3")
-       
-
+        self.respond("&&& unload_tool 1") 
         
-        if self.Selected_Filament > self.tool_count:
+        self.respond("Selected_Filament: " + str(self.Selected_Filament))
+        self.respond("new_filament: " + str(new_filament))
+        self.respond("tool_count: " + str(self.tool_count))
+        self.gcode.run_script_from_command("TEST3")
+        
+        
+        if self.Selected_Filament == -1:
+            self.cmd_UNLOAD_ALL()
+        
+        elif self.Selected_Filament > self.tool_count:
             self.respond("&&& unload_tool if")   
             self.gcode.run_script_from_command("TEST3")
             # exact positioning
@@ -720,15 +791,15 @@ class ROME:
             self.gcode.run_script_from_command("TEST3")
             
             if self.mode != "slicer":
-                #self.respond("unload not slicer!")
+                self.respond("unload not slicer!")
                 if not self.unload_filament_from_nozzle_to_parking_position():
-                    #self.respond("false")
+                    self.respond("unload_filament_from_nozzle_to_parking_position false")
                     return False
             if not self.unload_filament_from_parking_position_to_toolhead_sensor():
-                #self.respond("false")
+                self.respond("unload_filament_from_parking_position_to_toolhead_sensor false")
                 return False
             if not self.unload_filament_from_toolhead_sensor(new_filament, cache):
-                #self.respond("false")
+                self.respond("unload_filament_from_toolhead_sensor false")
                 return False
 
         # test if filament has been unloaded behind the y-sensor
