@@ -165,7 +165,9 @@ class ROME:
 
         # set hotend temperature
         if temp > 0:
-            self.set_hotend_temperature(temp)
+            self.extruder_set_temperature(temp, True)
+            
+            
         
         # unload tool
         #self.Selected_Filament = tool
@@ -203,12 +205,14 @@ class ROME:
                 self.uncache_all()
             
         self.Homed = False
+
+        self.respond("start gradual bed cooling")    
+        self.gcode.run_script_from_command("UPDATE_DELAYED_GCODE ID=gradual_cooldown DURATION=1")    
+            
+    
+
         
-        self.gcode.run_script_from_command("TURN_OFF_HEATERS")
-        self.gcode.run_script_from_command('M84')
-        self.gcode.run_script_from_command('M107')
-        self.gcode.run_script_from_command('M84')
-        self.respond("Done!")
+
 
     def cmd_ROME_START_PRINT(self, param):
      
@@ -254,7 +258,7 @@ class ROME:
         tool = param.get_int('TOOL', None, minval=0, maxval=self.tool_count)
         bed_temp = param.get_int('BED_TEMP', None, minval=-1, maxval=self.heater.max_temp)
         extruder_temp = param.get_int('EXTRUDER_TEMP', None, minval=-1, maxval=self.heater.max_temp)
-        chamber_temp = param.get_int('CHAMBER_TEMP', None, minval=0, maxval=75)
+        chamber_temp = param.get_int('CHAMBER_TEMP', None, minval=0, maxval=80)
         
         self.respond("BED TEMP TARGET: " + str(bed_temp))
         self.respond("CHAMBER TEMP TARGET: " + str(chamber_temp))
@@ -385,6 +389,8 @@ class ROME:
         # success
         return True
         
+     
+     
 
     # -----------------------------------------------------------------------------------------------------------------------------
     # Home
@@ -504,7 +510,7 @@ class ROME:
     # -----------------------------------------------------------------------------------------------------------------------------
 
     def filament_insert(self, tool):
-        if self.rome_setup == 0:
+        if self.rome_setup == 0: 
             # check hotend temperature
             if not self.extruder_can_extrude():
                 self.respond("Hotend cold! simultaneous heat nozzle and move filament")
